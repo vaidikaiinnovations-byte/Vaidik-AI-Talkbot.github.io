@@ -526,7 +526,7 @@ export default function App() {
             ) : (
               <div className="flex items-center gap-2">
                 <Sparkles className="text-indigo-600 dark:text-indigo-400" size={18} />
-                <span className="text-sm font-semibold tracking-tight">Vaidik AI talkbot</span>
+                <span className="text-sm font-semibold tracking-tight">Vaidik AI Talkbot</span>
               </div>
             )}
           </div>

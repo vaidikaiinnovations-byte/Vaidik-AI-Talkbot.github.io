@@ -113,7 +113,7 @@ export default function Sidebar({
               </div>
               <div>
                 <h1 className={`font-sans font-semibold tracking-tight text-base ${isDark ? "text-white" : "text-zinc-900"}`}>
-                  Vaidik AI talkbot
+                  Vaidik AI Talkbot
                 </h1>
                 <p className="text-xs text-zinc-400 font-mono">Powered by Gemini</p>
               </div>

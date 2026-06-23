@@ -1,5 +1,5 @@
 {
-  "name": "Vaidik AI talkbot",
+  "name": "Vaidik AI Talkbot",
   "description": "A versatile, feature-rich conversational assistant featuring custom personalities, typing-rate streaming responses, search grounding, and chat history export.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
