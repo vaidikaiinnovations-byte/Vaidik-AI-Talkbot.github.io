@@ -230,7 +230,7 @@ export default function App() {
       title: `${defaultPersona.name} Chat`,
       messages: [],
       createdAt: new Date().toLocaleTimeString(),
-      modelName: "gemini-3.5-pro",
+      modelName: "gemini-3.5-flash",
       systemInstruction: defaultPersona.systemInstruction,
       temperature: 0.7,
       searchGrounding: false
@@ -559,7 +559,7 @@ export default function App() {
       title: `${persona.name} Chat`,
       messages: [],
       createdAt: new Date().toLocaleTimeString(),
-      modelName: "gemini-3.5-pro",
+      modelName: "gemini-3.5-flash",
       systemInstruction: persona.systemInstruction,
       temperature: 0.7,
       searchGrounding: false
