@@ -1,98 +1,121 @@
 import { 
-  db, 
   collection, 
   doc, 
-  setDoc, 
   getDoc, 
-  getDocs, 
+  setDoc, 
   deleteDoc, 
+  getDocs, 
   query, 
-  where, 
-  orderBy 
-} from "./firebase";
+  where,
+  writeBatch
+} from "firebase/firestore";
+import { db, auth } from "./firebase";
 import { ChatSession } from "./types";
 
-const SESSIONS_COLLECTION = "sessions";
+export enum OperationType {
+  CREATE = "create",
+  UPDATE = "update",
+  DELETE = "delete",
+  LIST = "list",
+  GET = "get",
+  WRITE = "write",
+}
 
-/**
- * Saves a ChatSession securely to Firestore under the authenticated User UID.
- */
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error("Firestore Error: ", JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 export async function saveSessionToFirestore(userId: string, session: ChatSession): Promise<void> {
+  const path = `sessions/${session.id}`;
   try {
-    const sessionRef = doc(db, SESSIONS_COLLECTION, session.id);
-    await setDoc(sessionRef, {
+    await setDoc(doc(db, "sessions", session.id), {
       ...session,
-      userId,
-      updatedAt: new Date().toISOString()
+      userId
     });
   } catch (error) {
-    console.error("Firestore Save Session Error:", error);
-    throw error;
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-/**
- * Loads all ChatSessions belonging to a logged-in user.
- */
-export async function loadSessionsFromFirestore(userId: string): Promise<ChatSession[]> {
-  try {
-    const sessionsRef = collection(db, SESSIONS_COLLECTION);
-    const q = query(
-      sessionsRef, 
-      where("userId", "==", userId)
-    );
-    const querySnapshot = await getDocs(q);
-    const loaded: ChatSession[] = [];
-    
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      // Remove server-only metadata before returning local representation
-      const { userId: _, updatedAt: __, ...session } = data;
-      loaded.push(session as ChatSession);
-    });
-
-    // Client-side sort by session dynamic creation or activity
-    return loaded.sort((a, b) => {
-      const timeA = new Date(a.createdAt).getTime() || 0;
-      const timeB = new Date(b.createdAt).getTime() || 0;
-      return timeB - timeA; // Descending
-    });
-  } catch (error) {
-    console.error("Firestore Load Sessions Error:", error);
-    throw error;
-  }
-}
-
-/**
- * Deletes a ChatSession from Firestore.
- */
 export async function deleteSessionFromFirestore(sessionId: string): Promise<void> {
+  const path = `sessions/${sessionId}`;
   try {
-    const sessionRef = doc(db, SESSIONS_COLLECTION, sessionId);
-    await deleteDoc(sessionRef);
+    await deleteDoc(doc(db, "sessions", sessionId));
   } catch (error) {
-    console.error("Firestore Delete Session Error:", error);
-    throw error;
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-/**
- * Migrates existing guest local-only sessions into Firestore on login.
- */
-export async function migrateGuestSessionsToCloud(userId: string, guestSessions: ChatSession[]): Promise<ChatSession[]> {
-  if (!guestSessions || guestSessions.length === 0) return [];
-  
-  const migrationPromises = guestSessions.map(session => 
-    saveSessionToFirestore(userId, session)
-  );
-
+export async function loadSessionsFromFirestore(userId: string): Promise<ChatSession[]> {
+  const path = "sessions";
   try {
-    await Promise.all(migrationPromises);
-    console.log(`Successfully migrated ${guestSessions.length} sessions to your cloud database.`);
-    return guestSessions;
+    const q = query(collection(db, "sessions"), where("userId", "==", userId));
+    const snapshot = await getDocs(q);
+    const loaded: ChatSession[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      // Exclude userId from client-facing ChatSession state if needed, or keep it
+      const { userId: _, ...sessionData } = data;
+      loaded.push({
+        ...sessionData,
+        id: docSnap.id
+      } as ChatSession);
+    });
+    // Sort chronologically or by newest if needed, or let App level handle it
+    return loaded;
   } catch (error) {
-    console.error("Migration Error:", error);
-    // Return them anyway so we don't lose user data
-    return guestSessions;
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function migrateGuestSessionsToCloud(userId: string, guestSessions: ChatSession[]): Promise<void> {
+  if (guestSessions.length === 0) return;
+  const path = "sessions/batch-migration";
+  try {
+    const batch = writeBatch(db);
+    guestSessions.forEach((session) => {
+      const ref = doc(db, "sessions", session.id);
+      batch.set(ref, {
+        ...session,
+        userId
+      });
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }

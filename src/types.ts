@@ -5,6 +5,10 @@ export interface Message {
   timestamp: string;
   isGenerating?: boolean;
   groundingMetadata?: any;
+  image?: {
+    mimeType: string;
+    data: string; // Base64 encoding representation
+  };
 }
 
 export interface ChatSession {

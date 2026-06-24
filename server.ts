@@ -115,10 +115,21 @@ app.post("/api/chat", async (req, res) => {
 
   try {
     // Format history for the SDK: 'user' or 'model'. 
-    const formattedHistory = messages.map((msg: any) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }]
-    }));
+    const formattedHistory = messages.map((msg: any) => {
+      const parts: any[] = [{ text: msg.content || "" }];
+      if (msg.image && msg.image.data) {
+        parts.unshift({
+          inlineData: {
+            mimeType: msg.image.mimeType,
+            data: msg.image.data
+          }
+        });
+      }
+      return {
+        role: msg.role === "assistant" ? "model" : "user",
+        parts
+      };
+    });
 
     // Configure search grounding tool if enabled
     const tools: any[] = [];

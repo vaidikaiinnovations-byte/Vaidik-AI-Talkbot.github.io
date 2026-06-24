@@ -1,63 +1,21 @@
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut,
-  signInWithPopup,
+  onAuthStateChanged, 
+  signOut, 
+  signInWithPopup, 
   GoogleAuthProvider,
-  onAuthStateChanged,
   User as FirebaseUser
 } from "firebase/auth";
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc,
-  getDoc,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
-  limit
-} from "firebase/firestore";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBvGII8rmok0ce9MJ-IfiuHNPwmU_SW5a4",
-  authDomain: "primal-orb-674w7.firebaseapp.com",
-  projectId: "primal-orb-674w7",
-  storageBucket: "primal-orb-674w7.firebasestorage.app",
-  messagingSenderId: "308092126833",
-  appId: "1:308092126833:web:ea28d56b42883bfcaffdd0"
-};
+import { getFirestore } from "firebase/firestore";
+import firebaseConfig from "../firebase-applet-config.json";
 
 const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 export const auth = getAuth(app);
-export const db = getFirestore(app);
 
-// Google Sign-In Provider
+// Auth Providers
 export const googleProvider = new GoogleAuthProvider();
 
-export { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut,
-  signInWithPopup,
-  onAuthStateChanged,
-  collection,
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
-  limit
-};
+export { onAuthStateChanged, signOut, signInWithPopup };
 export type { FirebaseUser };

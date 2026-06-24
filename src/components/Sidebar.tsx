@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { 
   MessageSquare, Plus, Trash2, Download, Upload, 
   Settings, Sliders, Sparkles, Globe, X, Menu,
-  ChevronLeft, ChevronRight, HelpCircle, HardDrive, LogOut, LogIn, User
+  ChevronLeft, ChevronRight, HelpCircle, HardDrive, LogOut, LogIn,
+  Search, Mic, MicOff
 } from "lucide-react";
 import { ChatSession, PresetPersona } from "../types";
 import { AVAILABLE_MODELS } from "../data";
@@ -46,10 +47,56 @@ export default function Sidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [showConfig, setShowConfig] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchListening, setIsSearchListening] = useState(false);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const handleSearchVoiceInput = () => {
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Speech recognition is not supported in this browser.");
+        return;
+      }
+      
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = "en-US";
+      
+      rec.onstart = () => {
+        setIsSearchListening(true);
+      };
+      
+      rec.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setSearchQuery(transcript);
+        setIsSearchListening(false);
+      };
+      
+      rec.onerror = (err: any) => {
+        console.error("Search voice error:", err);
+        setIsSearchListening(false);
+      };
+      
+      rec.onend = () => {
+        setIsSearchListening(false);
+      };
+      
+      rec.start();
+    } catch (e) {
+      console.error(e);
+      setIsSearchListening(false);
+    }
+  };
+
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
+
+  const filteredSessions = sessions.filter(session => 
+    session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    session.messages.some(m => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   const handleStartRename = (session: ChatSession, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -145,6 +192,40 @@ export default function Sidebar({
             </button>
           </div>
 
+          {/* Voice Search filter input */}
+          <div className="px-4 pb-2">
+            <div className={`relative flex items-center rounded-xl border ${
+              isDark 
+                ? "bg-[#0B0F19] border-slate-800 focus-within:border-indigo-500" 
+                : "bg-white border-zinc-200 focus-within:border-indigo-500 shadow-sm"
+            }`}>
+              <Search size={14} className="absolute left-3 text-zinc-400 flex-shrink-0" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search dialogue titles..."
+                className={`w-full pl-9 pr-8 py-2 text-xs bg-transparent outline-none border-0 focus:ring-0 ${
+                  isDark ? "text-slate-200 placeholder-slate-500" : "text-zinc-800 placeholder-zinc-400"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={handleSearchVoiceInput}
+                className={`absolute right-2 p-1.5 rounded-lg transition-colors ${
+                  isSearchListening
+                    ? "bg-rose-500 text-white animate-pulse"
+                    : isDark
+                      ? "text-slate-400 hover:text-white hover:bg-slate-800"
+                      : "text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100"
+                }`}
+                title="Search via voice query"
+              >
+                {isSearchListening ? <MicOff size={11} /> : <Mic size={11} />}
+              </button>
+            </div>
+          </div>
+
           {/* Chat Sessions list scroll */}
           <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
             <div className="flex items-center justify-between px-2 py-1">
@@ -152,17 +233,18 @@ export default function Sidebar({
                 Conversations
               </span>
               <span className="text-xs opacity-50 font-mono bg-zinc-200 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-                {sessions.length}
+                {filteredSessions.length}
               </span>
             </div>
 
-            {sessions.length === 0 ? (
+            {filteredSessions.length === 0 ? (
               <div className="text-center py-8 px-4 opacity-50 text-xs">
-                No conversations yet.<br />Click the button above to begin!
+                {searchQuery ? "No matches found." : "No conversations yet."}<br />
+                {searchQuery ? "Try another search phrase." : "Click the button above to begin!"}
               </div>
             ) : (
               <div className="space-y-1">
-                {sessions.map((session) => {
+                {filteredSessions.map((session) => {
                   const isActive = session.id === activeSessionId;
                   return (
                     <div
@@ -412,7 +494,7 @@ export default function Sidebar({
 
             <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono text-center justify-center">
               <HardDrive size={11} />
-              <span>{user ? "Cloud database synchronized" : "Saves to local browser cache"}</span>
+              <span>{user ? "Cloud database synchronized" : "Saves securely to local browser cache"}</span>
             </div>
           </div>
 

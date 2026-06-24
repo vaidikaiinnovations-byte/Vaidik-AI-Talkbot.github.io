@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Sparkles, Send, Bot, User, Trash2, ArrowRight,
   RefreshCw, FileText, AlertCircle, Search, ExternalLink,
-  BookOpen, Code, Lightbulb, ShieldCheck, HelpCircle
+  BookOpen, Code, Lightbulb, ShieldCheck, HelpCircle,
+  Mic, MicOff, Image, X
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import Sidebar from "./components/Sidebar";
@@ -31,22 +32,110 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
+  // Voice Speech & Image Search state
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
+  const [selectedImage, setSelectedImage] = useState<{ mimeType: string; data: string } | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Load configuration from local storage on bootstrap
+  // Initialize Speech Recognition API
   useEffect(() => {
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition();
+        rec.continuous = false;
+        rec.interimResults = false;
+        rec.lang = "en-US";
+
+        rec.onstart = () => {
+          setIsListening(true);
+        };
+
+        rec.onerror = (e: any) => {
+          console.error("Speech recognition error:", e);
+          setIsListening(false);
+        };
+
+        rec.onend = () => {
+          setIsListening(false);
+        };
+
+        rec.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          if (transcript) {
+            setInput((prev) => prev + (prev ? " " : "") + transcript);
+          }
+        };
+
+        setRecognition(rec);
+      }
+    } catch (err) {
+      console.error("Speech recognition initialization error:", err);
+    }
+  }, []);
+
+  const handleToggleListening = () => {
+    if (!recognition) {
+      alert("Speech recognition is not fully supported on this platform/browser.");
+      return;
+    }
+    if (isListening) {
+      recognition.stop();
+    } else {
+      try {
+        recognition.start();
+      } catch (err) {
+        console.error("Failed to start speech recognition:", err);
+      }
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file (PNG, JPG, JPEG, WebP).");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Data = result.split(",")[1];
+      setSelectedImage({
+        mimeType: file.type,
+        data: base64Data
+      });
+      setImagePreviewUrl(result);
+    };
+    reader.onerror = (err) => {
+      console.error("Reader failed to read image file as data URL:", err);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleClearImage = () => {
+    setSelectedImage(null);
+    setImagePreviewUrl(null);
+  };
+
+  // Load configuration and listen to Auth State Changes
+  useEffect(() => {
+    // 1. Initial theme load
     try {
       const themePref = localStorage.getItem("ai_chatbot_theme");
       if (themePref === "dark") {
         setIsDark(true);
       }
     } catch (e) {
-      console.error("Failed to load local storage state", e);
+      console.error("Failed to load local storage theme", e);
     }
-  }, []);
 
-  // Listen to Auth State Changes
-  useEffect(() => {
+    // 2. Setup auth state listener
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -95,6 +184,17 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      localStorage.removeItem("ai_chatbot_sessions");
+      setSessions([]);
+      setActiveSessionId(null);
+    } catch (err) {
+      console.error("Sign out action failed:", err);
+    }
+  };
 
   // Save changes to local storage
   const saveSessions = (updatedSessions: ChatSession[]) => {
@@ -223,17 +323,6 @@ export default function App() {
     fileReader.readAsText(files[0]);
   };
 
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      localStorage.removeItem("ai_chatbot_sessions");
-      setSessions([]);
-      setActiveSessionId(null);
-    } catch (err) {
-      console.error("Sign out action failed:", err);
-    }
-  };
-
   // Auto scroll down to the bottom
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -246,20 +335,26 @@ export default function App() {
   // Submit trigger
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
-    if (!query || isGenerating) return;
+    if ((!query && !selectedImage) || isGenerating) return;
 
     setInput("");
     setErrorText(null);
+
+    const imagePayload = selectedImage;
+    setSelectedImage(null);
+    setImagePreviewUrl(null);
 
     // If there's no active session, bootstrap one on-the-fly
     let currentSessionId = activeSessionId;
     let currentSession = sessions.find(s => s.id === currentSessionId);
 
+    const initialTitleText = query || "Image Query";
+
     if (!currentSession) {
       const defaultPersona = PRESET_PERSONAS[0];
       const newSession: ChatSession = {
         id: generateUUID(),
-        title: query.length > 20 ? query.substring(0, 20) + "..." : query,
+        title: initialTitleText.length > 20 ? initialTitleText.substring(0, 20) + "..." : initialTitleText,
         messages: [],
         createdAt: new Date().toLocaleTimeString(),
         modelName: "gemini-3.5-flash",
@@ -279,8 +374,9 @@ export default function App() {
     const userMessage: Message = {
       id: generateUUID(),
       role: "user",
-      content: query,
-      timestamp: new Date().toLocaleTimeString()
+      content: query || "Analyze this image.",
+      timestamp: new Date().toLocaleTimeString(),
+      ...(imagePayload ? { image: imagePayload } : {})
     };
 
     // Auto update empty/generic title if this is the first message
@@ -631,6 +727,17 @@ export default function App() {
                             ? "bg-slate-900/60 border border-slate-800 text-slate-200 rounded-tl-none"
                             : "bg-[#f8fafc] border border-slate-200 text-slate-800 rounded-tl-none shadow-sm"
                       }`}>
+                        {msg.image && (
+                          <div className="mb-3 max-w-xs md:max-w-sm rounded-xl overflow-hidden border border-zinc-200/20 dark:border-slate-800/80 shadow-sm bg-white dark:bg-slate-950">
+                            <img 
+                              src={`data:${msg.image.mimeType};base64,${msg.image.data}`} 
+                              alt="Uploaded context" 
+                              className="w-full h-auto object-contain max-h-60"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        )}
+
                         {msg.content === "" && msg.isGenerating ? (
                           <div className="flex items-center gap-2.5 py-1 text-zinc-400">
                             <RefreshCw className="animate-spin" size={14} />
@@ -738,7 +845,7 @@ export default function App() {
           )}
         </div>
 
-        {/* Input Bar Area - Professional Polish styling applied */}
+        {/* Input Bar Area - Professional Polish styling applied with voice & image keys */}
         <div className={`p-6 md:p-8 flex-shrink-0 border-t ${
           isDark ? "bg-[#0B0F19] border-slate-800" : "bg-[#fafafa] border-slate-200"
         }`}>
@@ -748,50 +855,139 @@ export default function App() {
                 e.preventDefault();
                 handleSendMessage();
               }}
-              className="relative flex items-center"
             >
-              <textarea
-                rows={1}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                disabled={isGenerating}
-                placeholder={isGenerating ? "Streaming answer, please wait..." : "Ask a follow-up or query another topic..."}
-                className={`w-full pl-6 pr-24 py-4 bg-white dark:bg-slate-900 border rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-sm transition-all ${
-                  isDark 
-                    ? "border-slate-800 text-white placeholder-slate-500 focus:border-indigo-500" 
-                    : "border-slate-200 text-slate-800 placeholder-zinc-400 focus:border-indigo-400"
-                }`}
-              />
-
-              <div className="absolute right-3.5 flex items-center gap-2">
-                {input.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => setInput("")}
-                    className="p-1 px-1.5 rounded text-xs opacity-60 hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    Clear
-                  </button>
+              <div className={`rounded-2xl border shadow-sm p-2 transition-all duration-200 ${
+                isDark 
+                  ? "bg-slate-900 border-slate-800 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20" 
+                  : "bg-white border-slate-200 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-400/20"
+              }`}>
+                {/* Optional Image Preview strip */}
+                {imagePreviewUrl && (
+                  <div className="flex items-center gap-3 p-3 border-b border-zinc-100 dark:border-slate-800/60">
+                    <div className="relative group w-16 h-16 rounded-xl overflow-hidden border border-zinc-200 dark:border-slate-700 bg-zinc-50 dark:bg-slate-950 flex-shrink-0">
+                      <img 
+                        src={imagePreviewUrl} 
+                        alt="Attachment preview" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleClearImage}
+                        className="absolute top-1 right-1 p-0.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow"
+                        title="Remove image attachment"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-700 dark:text-slate-300">Image attachment selected</p>
+                      <p className="text-[10px] text-zinc-400 dark:text-slate-500 font-mono">Ready to analyze with Vaidik AI innovations</p>
+                    </div>
+                  </div>
                 )}
-                
-                <button
-                  type="submit"
-                  disabled={!input.trim() || isGenerating}
-                  className={`p-2.5 rounded-xl shadow-lg transition-all ${
-                    !input.trim() || isGenerating
-                      ? "bg-zinc-200 dark:bg-slate-800 text-zinc-400 dark:text-slate-600 cursor-not-allowed shadow-none"
-                      : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-indigo-600/20"
-                  }`}
-                  title="Send Dialogue Query"
-                >
-                  <Send size={16} />
-                </button>
+
+                {/* Text Input area */}
+                <div className="relative flex items-end">
+                  <textarea
+                    rows={2}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    disabled={isGenerating}
+                    placeholder={
+                      isGenerating 
+                        ? "Streaming answer, please wait..." 
+                        : recognition 
+                          ? "Message or tap Mic to dictate / Image to attach..." 
+                          : "Ask a follow-up or query another topic..."
+                    }
+                    className="w-full px-4 py-3 bg-transparent outline-none resize-none text-sm border-0 focus:ring-0 focus:outline-none text-slate-800 dark:text-slate-100 placeholder-zinc-400 dark:placeholder-slate-500"
+                  />
+                </div>
+
+                {/* Toolbar Actions Bar */}
+                <div className="flex items-center justify-between px-3 py-1.5 border-t border-zinc-50 dark:border-slate-800/40">
+                  <div className="flex items-center gap-2">
+                    {/* Image input selector */}
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                        disabled={isGenerating}
+                      />
+                      <div className={`p-2 rounded-xl transition-all hover:scale-105 ${
+                        isDark 
+                          ? "text-slate-400 hover:text-white hover:bg-slate-800" 
+                          : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
+                      }`} title="Attach photo or screen capture for analysis">
+                        <Image size={18} />
+                      </div>
+                    </label>
+
+                    {/* Speech input mic trigger */}
+                    <button
+                      type="button"
+                      onClick={handleToggleListening}
+                      disabled={isGenerating}
+                      className={`p-2 rounded-xl transition-all hover:scale-105 relative ${
+                        isListening
+                          ? "bg-rose-500 text-white animate-pulse"
+                          : isDark
+                            ? "text-slate-400 hover:text-white hover:bg-slate-800"
+                            : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
+                      }`}
+                      title={isListening ? "Listening... click to stop" : "Dictate via voice input"}
+                    >
+                      {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                      {isListening && (
+                        <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                        </span>
+                      )}
+                    </button>
+                    
+                    {isListening && (
+                      <span className="text-[10px] font-mono text-rose-500 animate-pulse font-semibold">
+                        Listening voice input...
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {input.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => setInput("")}
+                        className="p-1.5 px-2 rounded-lg text-xs font-semibold opacity-60 hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    
+                    <button
+                      type="submit"
+                      disabled={(!input.trim() && !selectedImage) || isGenerating}
+                      className={`px-4 py-2 rounded-xl shadow transition-all duration-200 text-xs font-semibold flex items-center gap-1.5 ${
+                        (!input.trim() && !selectedImage) || isGenerating
+                          ? "bg-zinc-100 dark:bg-slate-800 text-zinc-400 dark:text-slate-600 cursor-not-allowed shadow-none"
+                          : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-indigo-600/10"
+                      }`}
+                      title="Send Dialogue Query"
+                    >
+                      <span>Send</span>
+                      <Send size={12} />
+                    </button>
+                  </div>
+                </div>
               </div>
             </form>
             <div className="mt-2 text-center text-xs text-zinc-400 dark:text-slate-500 font-sans space-y-0.5">
