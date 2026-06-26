@@ -67,7 +67,7 @@ export default function AuthModal({ isOpen, onClose, isDark, onAuthSuccess }: Au
 
           <h2 className="text-xl font-bold tracking-tight">Sync conversations to Cloud</h2>
           <p className={`text-xs mt-1.5 max-w-xs ${isDark ? "text-slate-400" : "text-zinc-500"}`}>
-            Securely save your conversations with Vaidik AI Talkbot and resume them on any device.
+            Securely save your conversations with AI VAIDIK Talkbot and resume them on any device.
           </p>
 
           {error && (

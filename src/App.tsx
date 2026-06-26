@@ -631,7 +631,7 @@ export default function App() {
             ) : (
               <div className="flex items-center gap-2">
                 <Sparkles className="text-indigo-600 dark:text-indigo-400" size={18} />
-                <span className="text-sm font-semibold tracking-tight">Vaidik AI Talkbot</span>
+                <span className="text-sm font-semibold tracking-tight">AI VAIDIK Talkbot</span>
               </div>
             )}
           </div>
@@ -887,7 +887,7 @@ export default function App() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-zinc-700">Image attachment selected</p>
-                      <p className="text-[10px] text-zinc-400 font-mono">Ready to analyze with Vaidik AI innovations</p>
+                      <p className="text-[10px] text-zinc-400 font-mono">Ready to analyze with AI VAIDIK innovations</p>
                     </div>
                   </div>
                 )}
@@ -990,7 +990,7 @@ export default function App() {
               </div>
             </form>
             <div className="mt-2 text-center text-xs text-zinc-400 dark:text-slate-500 font-sans space-y-0.5">
-              <p className="font-semibold text-zinc-500 dark:text-slate-400">Developed by Vaidik AI innovations</p>
+              <p className="font-semibold text-zinc-500 dark:text-slate-400">Developed by AI VAIDIK innovations</p>
               <p className="text-[10px] font-mono opacity-85">Where intelligence meets innovations</p>
             </div>
           </div>

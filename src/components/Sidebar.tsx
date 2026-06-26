@@ -155,12 +155,12 @@ export default function Sidebar({
             isDark ? "border-slate-800 bg-[#0B0F19]" : "border-zinc-200 bg-zinc-100"
           }`}>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-600 text-white rounded-lg shadow-md shadow-indigo-500/20">
-                <Sparkles size={20} />
+              <div className="w-10 h-10 rounded-lg overflow-hidden shadow-md shadow-indigo-500/20 border border-indigo-500/30">
+                <img src="/icon.jpg" alt="AI Vaidik Logo" className="w-full h-full object-cover" />
               </div>
               <div>
                 <h1 className={`font-sans font-semibold tracking-tight text-base ${isDark ? "text-white" : "text-zinc-900"}`}>
-                  Vaidik AI Talkbot
+                  AI VAIDIK Talkbot
                 </h1>
                 <p className="text-xs text-zinc-400 font-mono">Powered by Gemini</p>
               </div>

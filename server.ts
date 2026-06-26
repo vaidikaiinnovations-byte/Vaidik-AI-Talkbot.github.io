@@ -13,7 +13,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Initialize Gemini client safely
 // The API key is acquired via GEMINI_API_KEY on the server.
@@ -28,9 +29,8 @@ const ai = new GoogleGenAI({
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", hasApiKey: !!process.env.GEMINI_API_KEY });
+  res.status(200).json({ status: "ok", message: "Server is responding!", hasApiKey: !!process.env.GEMINI_API_KEY });
 });
-
 function extractErrorMessage(err: any): string {
   if (!err) return "An unknown error occurred.";
   let message = err.message || String(err);
@@ -181,7 +181,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     console.log("Setting up production static file assets...");
-    const distPath = path.join(__dirname, "dist");
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
